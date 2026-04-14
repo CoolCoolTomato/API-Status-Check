@@ -42,6 +42,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
 
+  const token = localStorage.getItem('token');
+
   const loadData = async () => {
     const res = await apiService.getRecent();
     if (res.code === 0) setRecent(res.data || []);
@@ -91,9 +93,10 @@ export default function Dashboard() {
             {totalUp}/{channels.length} channels operational · auto-refresh 30s
           </p>
         </div>
-        <Button onClick={runCheck} disabled={checking} size="sm">
+        {token? <Button onClick={runCheck} disabled={checking} size="sm">
           {checking ? 'Checking...' : 'Run Check'}
-        </Button>
+        </Button>: <></> }
+        
       </div>
 
       <div className="grid gap-4 mt-6 md:grid-cols-2 xl:grid-cols-3">
