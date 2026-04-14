@@ -24,7 +24,7 @@ func (s *Scheduler) Start() {
 func (s *Scheduler) run() {
 	s.checkService.RunCheck()
 
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
