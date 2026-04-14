@@ -6,6 +6,7 @@ import (
 	"api-status-check/internal/storage"
 	"api-status-check/internal/util"
 	"log"
+	"strings"
 )
 
 type CheckService struct {
@@ -32,7 +33,14 @@ func (s *CheckService) RunCheck() {
 			continue
 		}
 
-		result := client.CheckAPI(cfg.APIURL, cfg.Token, cfg.Model)
+		var result client.CheckResult
+		modelName := strings.ToLower(cfg.Model)
+
+		if strings.Contains(modelName, "gemini") {
+			result = client.CheckGemini(cfg.APIURL, cfg.Token, cfg.Model)
+		} else {
+			result = client.CheckAPI(cfg.APIURL, cfg.Token, cfg.Model)
+		}
 
 		record := model.CheckRecord{
 			ID:              util.GenerateUUID(),

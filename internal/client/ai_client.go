@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -153,6 +154,101 @@ func CheckAPI(apiURL, token, model string) CheckResult {
 
 	result.Available = true
 	result.ResponsePreview = truncate(text, 200)
+	return result
+}
+
+func CheckGemini(apiURL, apiKey, model string) CheckResult {
+	start := time.Now()
+	result := CheckResult{
+		CheckTime: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	baseURL := strings.TrimRight(apiURL, "/")
+	fullURL := fmt.Sprintf("%s/v1beta/models/%s:streamGenerateContent?alt=sse", baseURL, model)
+
+	payloadMap := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]string{
+					{"text": "hi"},
+				},
+			},
+		},
+	}
+	bodyBytes, _ := json.Marshal(payloadMap)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		result.ErrorMessage = "failed to create request: " + err.Error()
+		return result
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", apiKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	result.LatencyMs = time.Since(start).Milliseconds()
+
+	if err != nil {
+		result.Available = false
+		result.ErrorMessage = "request failed: " + err.Error()
+		return result
+	}
+	defer resp.Body.Close()
+
+	result.StatusCode = resp.StatusCode
+
+	if resp.StatusCode != http.StatusOK {
+		result.Available = false
+		body, _ := io.ReadAll(resp.Body)
+		result.ErrorMessage = fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body))
+		return result
+	}
+
+	reader := bufio.NewReader(resp.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			result.Available = false
+			result.ErrorMessage = "read stream failed: " + err.Error()
+			return result
+		}
+
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "data: ") {
+			data := strings.TrimPrefix(line, "data: ")
+
+			var frame struct {
+				Candidates []struct {
+					Content struct {
+						Parts []struct {
+							Text string `json:"text"`
+						} `json:"parts"`
+					} `json:"content"`
+				} `json:"candidates"`
+			}
+
+			if err := json.Unmarshal([]byte(data), &frame); err != nil {
+				continue
+			}
+
+			if len(frame.Candidates) > 0 && len(frame.Candidates[0].Content.Parts) > 0 {
+				result.Available = true
+				result.ResponsePreview = frame.Candidates[0].Content.Parts[0].Text
+				return result
+			}
+		}
+	}
+
+	result.Available = false
+	result.ErrorMessage = "stream ended without content"
 	return result
 }
 
