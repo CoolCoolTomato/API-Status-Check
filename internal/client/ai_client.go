@@ -63,7 +63,7 @@ func CheckAPI(apiURL, token, model string) CheckResult {
 		CheckTime:  time.Now().UTC().Format(time.RFC3339),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	baseURL := strings.TrimRight(apiURL, "/")
